@@ -4,9 +4,11 @@ __pycache__/test.cpython-313.pyc
 screenshot_resized.png
 screenshot.png
 
-# Directories to ignore
-screenshots/
-activity_logs/
+# Directories to ignore (keep placeholder files tracked)
+screenshots/*
+!screenshots/.gitkeep
+activity_logs/*
+!activity_logs/.gitkeep
 
 # API keys and sensitive files
 .env
