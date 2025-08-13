@@ -1,0 +1,18 @@
+screenshot_resized.png
+screenshot.png
+__pycache__/test.cpython-313.pyc
+screenshot_resized.png
+screenshot.png
+
+# Directories to ignore
+screenshots/
+activity_logs/
+
+# API keys and sensitive files
+.env
+*.key
+api_key.txt
+aws_bedrock_api_key.txt
+bedrock_api_key.txt
+config.json
+.aws/
