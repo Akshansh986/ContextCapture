@@ -13,6 +13,19 @@ import signal
 import sys
 import argparse
 import boto3
+import platform
+
+# macOS-specific imports for multi-monitor support
+if platform.system() == 'Darwin':
+    try:
+        from Cocoa import NSScreen, NSEvent
+        from Quartz import CGMainDisplayID, CGGetActiveDisplayList, CGDisplayBounds
+        MACOS_MULTIMONITOR_SUPPORT = True
+    except ImportError:
+        print("Warning: macOS multi-monitor support unavailable. Install pyobjc-framework-Quartz and pyobjc-framework-Cocoa.")
+        MACOS_MULTIMONITOR_SUPPORT = False
+else:
+    MACOS_MULTIMONITOR_SUPPORT = False
 
 # Load environment variables from .env file
 load_dotenv()
@@ -36,6 +49,7 @@ power_state_lock = threading.Lock()
 MODEL_TYPE = "ollama"  # Default to ollama
 AWS_BEDROCK_API_KEY = None
 AWS_REGION = "us-east-1"  # Default region
+MONITOR_INDEX = None  # Specific monitor to capture (None = active monitor)
 
 
 def run_tesseract_ocr(image_path):
@@ -294,9 +308,82 @@ def test_ollama_connection():
         print(f"Test failed: {e}")
         return False
 
+def get_active_monitor_region():
+    """
+    Get the region (x, y, width, height) of the monitor to capture.
+    If MONITOR_INDEX is set, capture that specific monitor.
+    Otherwise, capture the monitor with the mouse cursor (active monitor).
+    Falls back to full screenshot if multi-monitor support is not available.
+    """
+    if not MACOS_MULTIMONITOR_SUPPORT:
+        return None  # None means capture all monitors
+    
+    try:
+        # Get all screens
+        screens = NSScreen.screens()
+        
+        # If a specific monitor index is requested
+        if MONITOR_INDEX is not None:
+            if 0 <= MONITOR_INDEX < len(screens):
+                screen = screens[MONITOR_INDEX]
+                frame = screen.frame()
+                
+                # Get the main screen height for coordinate conversion
+                main_screen_height = NSScreen.mainScreen().frame().size.height
+                
+                # Convert macOS coordinates (bottom-left origin) to pyautogui coordinates (top-left origin)
+                x = int(frame.origin.x)
+                y = int(main_screen_height - (frame.origin.y + frame.size.height))
+                width = int(frame.size.width)
+                height = int(frame.size.height)
+                
+                print(f"🖥️  Monitor {MONITOR_INDEX} selected: Position({x}, {y}), Size({width}x{height})")
+                return (x, y, width, height)
+            else:
+                print(f"⚠️  Monitor index {MONITOR_INDEX} is out of range. Available monitors: 0-{len(screens)-1}")
+                print("⚠️  Falling back to active monitor detection")
+        
+        # Default behavior: detect active monitor based on mouse position
+        mouse_location = NSEvent.mouseLocation()
+        
+        # Find which screen contains the mouse cursor
+        for i, screen in enumerate(screens):
+            frame = screen.frame()
+            # NSScreen coordinates have origin at bottom-left
+            if (mouse_location.x >= frame.origin.x and 
+                mouse_location.x <= frame.origin.x + frame.size.width and
+                mouse_location.y >= frame.origin.y and 
+                mouse_location.y <= frame.origin.y + frame.size.height):
+                
+                # Get the main screen height for coordinate conversion
+                main_screen_height = NSScreen.mainScreen().frame().size.height
+                
+                # Convert macOS coordinates (bottom-left origin) to pyautogui coordinates (top-left origin)
+                x = int(frame.origin.x)
+                y = int(main_screen_height - (frame.origin.y + frame.size.height))
+                width = int(frame.size.width)
+                height = int(frame.size.height)
+                
+                print(f"🖥️  Active monitor detected (Monitor {i}): Position({x}, {y}), Size({width}x{height})")
+                return (x, y, width, height)
+        
+        # If we couldn't find the monitor with mouse, return None for full capture
+        print("⚠️  Could not determine active monitor, capturing all monitors")
+        return None
+        
+    except Exception as e:
+        print(f"⚠️  Error detecting monitor: {e}, capturing all monitors")
+        return None
+
 def capture_and_analyze():
-    # Take screenshot
-    screenshot = pyautogui.screenshot()
+    # Get the active monitor region
+    monitor_region = get_active_monitor_region()
+    
+    # Take screenshot of active monitor or all monitors
+    if monitor_region:
+        screenshot = pyautogui.screenshot(region=monitor_region)
+    else:
+        screenshot = pyautogui.screenshot()
 
     # Get current epoch timestamp
     epoch_time = int(time.time())
@@ -369,6 +456,8 @@ def parse_arguments():
                        help='AWS region for Bedrock (default: us-east-1)')
     parser.add_argument('--test', action='store_true',
                        help='Test the selected model connection and exit')
+    parser.add_argument('--monitor', type=int, default=None,
+                       help='Specify monitor index to capture (0-based). Default: active monitor')
     
     return parser.parse_args()
 
@@ -381,6 +470,7 @@ if __name__ == "__main__":
     MODEL_TYPE = args.model
     AWS_BEDROCK_API_KEY = args.aws_bedrock_api_key or os.getenv('AWS_BEARER_TOKEN_BEDROCK')
     AWS_REGION = args.aws_region
+    MONITOR_INDEX = args.monitor
     
     # Check if user wants to test connection first
     if args.test:
@@ -409,6 +499,19 @@ if __name__ == "__main__":
         model_display = "Claude via AWS Bedrock" if MODEL_TYPE == "claude" else "local ChatGPT model via Ollama"
         print(f"🖥️  Starting intelligent screen monitoring with {model_display}")
         print("💤 Features: Automatic sleep/wake detection - monitoring pauses when laptop sleeps")
+        
+        # Display multi-monitor support status
+        if MACOS_MULTIMONITOR_SUPPORT:
+            if MONITOR_INDEX is not None:
+                print(f"🖥️  Multi-monitor support: ENABLED - Capturing Monitor {MONITOR_INDEX}")
+            else:
+                print("🖥️  Multi-monitor support: ENABLED - Capturing active monitor (where mouse is)")
+            print("💡 Tip: Use --monitor <index> to capture a specific monitor")
+        else:
+            print("🖥️  Multi-monitor support: DISABLED - Capturing all monitors")
+            if platform.system() == 'Darwin':
+                print("💡 To enable: pip install pyobjc-framework-Quartz pyobjc-framework-Cocoa")
+        
         print("🛑 Press Ctrl+C to stop")
         
         if MODEL_TYPE == "claude":
