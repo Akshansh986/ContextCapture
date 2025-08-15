@@ -308,6 +308,25 @@ def test_ollama_connection():
         print(f"Test failed: {e}")
         return False
 
+def get_current_displays():
+    """Get the current list of active displays using Quartz CGGetActiveDisplayList"""
+    max_displays = 10
+    # CGGetActiveDisplayList returns (error, display_ids, display_count)
+    (err, display_ids, display_count) = CGGetActiveDisplayList(max_displays, None, None)
+    if err == 0:
+        return display_ids[:display_count]
+    return []
+
+def get_display_bounds(display_id):
+    """Get the bounds of a display using CGDisplayBounds"""
+    bounds = CGDisplayBounds(display_id)
+    return {
+        'x': int(bounds.origin.x),
+        'y': int(bounds.origin.y),
+        'width': int(bounds.size.width),
+        'height': int(bounds.size.height)
+    }
+
 def get_active_monitor_region():
     """
     Get the region (x, y, width, height) of the monitor to capture.
@@ -319,57 +338,61 @@ def get_active_monitor_region():
         return None  # None means capture all monitors
     
     try:
-        # Get all screens
-        screens = NSScreen.screens()
+        # Get current displays using Quartz (always up-to-date)
+        display_ids = get_current_displays()
+        
+        if not display_ids:
+            print("⚠️  No displays found, capturing all monitors")
+            return None
+        
+        print(f"📊 Found {len(display_ids)} display(s)")
+        
+        # Get main display info for coordinate conversion
+        main_display_id = CGMainDisplayID()
+        main_bounds = get_display_bounds(main_display_id)
         
         # If a specific monitor index is requested
         if MONITOR_INDEX is not None:
-            if 0 <= MONITOR_INDEX < len(screens):
-                screen = screens[MONITOR_INDEX]
-                frame = screen.frame()
+            if 0 <= MONITOR_INDEX < len(display_ids):
+                display_id = display_ids[MONITOR_INDEX]
+                bounds = get_display_bounds(display_id)
                 
-                # Get the main screen height for coordinate conversion
-                main_screen_height = NSScreen.mainScreen().frame().size.height
-                
-                # Convert macOS coordinates (bottom-left origin) to pyautogui coordinates (top-left origin)
-                x = int(frame.origin.x)
-                y = int(main_screen_height - (frame.origin.y + frame.size.height))
-                width = int(frame.size.width)
-                height = int(frame.size.height)
+                # Quartz coordinates are already in the correct format for pyautogui
+                # (top-left origin), so we don't need complex conversion
+                x = bounds['x']
+                y = bounds['y']
+                width = bounds['width']
+                height = bounds['height']
                 
                 print(f"🖥️  Monitor {MONITOR_INDEX} selected: Position({x}, {y}), Size({width}x{height})")
                 return (x, y, width, height)
             else:
-                print(f"⚠️  Monitor index {MONITOR_INDEX} is out of range. Available monitors: 0-{len(screens)-1}")
+                print(f"⚠️  Monitor index {MONITOR_INDEX} is out of range. Available monitors: 0-{len(display_ids)-1}")
                 print("⚠️  Falling back to active monitor detection")
         
         # Default behavior: detect active monitor based on mouse position
         mouse_location = NSEvent.mouseLocation()
         
-        # Find which screen contains the mouse cursor
-        for i, screen in enumerate(screens):
-            frame = screen.frame()
-            # NSScreen coordinates have origin at bottom-left
-            if (mouse_location.x >= frame.origin.x and 
-                mouse_location.x <= frame.origin.x + frame.size.width and
-                mouse_location.y >= frame.origin.y and 
-                mouse_location.y <= frame.origin.y + frame.size.height):
-                
-                # Get the main screen height for coordinate conversion
-                main_screen_height = NSScreen.mainScreen().frame().size.height
-                
-                # Convert macOS coordinates (bottom-left origin) to pyautogui coordinates (top-left origin)
-                x = int(frame.origin.x)
-                y = int(main_screen_height - (frame.origin.y + frame.size.height))
-                width = int(frame.size.width)
-                height = int(frame.size.height)
-                
-                print(f"🖥️  Active monitor detected (Monitor {i}): Position({x}, {y}), Size({width}x{height})")
-                return (x, y, width, height)
+        # NSEvent.mouseLocation() uses bottom-left origin, but CGDisplayBounds uses top-left
+        # We need to convert the mouse y-coordinate
+        mouse_y_converted = main_bounds['height'] - mouse_location.y
         
-        # If we couldn't find the monitor with mouse, return None for full capture
-        print("⚠️  Could not determine active monitor, capturing all monitors")
-        return None
+        # Find which display contains the mouse cursor
+        for i, display_id in enumerate(display_ids):
+            bounds = get_display_bounds(display_id)
+            
+            # Check if mouse is within this display's bounds
+            if (mouse_location.x >= bounds['x'] and 
+                mouse_location.x < bounds['x'] + bounds['width'] and
+                mouse_y_converted >= bounds['y'] and 
+                mouse_y_converted < bounds['y'] + bounds['height']):
+                
+                print(f"🖥️  Active monitor detected (Monitor {i}): Position({bounds['x']}, {bounds['y']}), Size({bounds['width']}x{bounds['height']})")
+                return (bounds['x'], bounds['y'], bounds['width'], bounds['height'])
+        
+        # If we couldn't find the monitor with mouse, use the main display
+        print("⚠️  Could not determine active monitor, using main display")
+        return (main_bounds['x'], main_bounds['y'], main_bounds['width'], main_bounds['height'])
         
     except Exception as e:
         print(f"⚠️  Error detecting monitor: {e}, capturing all monitors")
@@ -443,6 +466,48 @@ Screenshot: {resized_filename}
     
     return {"raw": raw_log_entry, "processed": processed_log_entry}
 
+def test_monitor_detection():
+    """
+    Test function to continuously monitor display changes
+    """
+    if not MACOS_MULTIMONITOR_SUPPORT:
+        print("macOS multi-monitor support is not available")
+        return
+    
+    print("🔍 Monitor Detection Test - Updates every 2 seconds")
+    print("Connect/disconnect monitors to see real-time updates")
+    print("Press Ctrl+C to stop\n")
+    
+    last_count = -1
+    
+    try:
+        while True:
+            # Get current displays using Quartz
+            display_ids = get_current_displays()
+            current_count = len(display_ids)
+            
+            # Only print if display count changed
+            if current_count != last_count:
+                print(f"\n{'='*60}")
+                print(f"🖥️  DISPLAY CONFIGURATION CHANGED!")
+                print(f"Found {current_count} display(s):")
+                
+                for i, display_id in enumerate(display_ids):
+                    bounds = get_display_bounds(display_id)
+                    is_main = display_id == CGMainDisplayID()
+                    main_marker = " (Main)" if is_main else ""
+                    print(f"  Monitor {i}{main_marker}: Position({bounds['x']}, {bounds['y']}), Size({bounds['width']}x{bounds['height']})")
+                
+                print(f"{'='*60}\n")
+                last_count = current_count
+            else:
+                # Show a simple indicator that we're still monitoring
+                print(".", end="", flush=True)
+            
+            time.sleep(2)
+    except KeyboardInterrupt:
+        print("\n\n✅ Monitor detection test stopped")
+
 def parse_arguments():
     """
     Parse command line arguments for model selection and AWS Bedrock API key
@@ -458,6 +523,8 @@ def parse_arguments():
                        help='Test the selected model connection and exit')
     parser.add_argument('--monitor', type=int, default=None,
                        help='Specify monitor index to capture (0-based). Default: active monitor')
+    parser.add_argument('--test-monitors', action='store_true',
+                       help='Test monitor detection - shows real-time display changes')
     
     return parser.parse_args()
 
@@ -471,6 +538,11 @@ if __name__ == "__main__":
     AWS_BEDROCK_API_KEY = args.aws_bedrock_api_key or os.getenv('AWS_BEARER_TOKEN_BEDROCK')
     AWS_REGION = args.aws_region
     MONITOR_INDEX = args.monitor
+    
+    # Check if user wants to test monitor detection
+    if args.test_monitors:
+        test_monitor_detection()
+        sys.exit(0)
     
     # Check if user wants to test connection first
     if args.test:
