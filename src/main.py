@@ -35,13 +35,13 @@ def capture_and_analyze():
 
     ocr_text = run_tesseract_ocr(resized_path)
     
-    model_name = "Claude API" if MODEL_TYPE == "claude" else "local ChatGPT model via Ollama"
+    model_name = "Bedrock API" if MODEL_TYPE == "bedrock" else "local ChatGPT model via Ollama"
     print(f"Analyzing content with {model_name}...")
     analysis = analyze_content(ocr_text, MODEL_TYPE)
     
     log_entries = write_activity_logs(epoch_time, resized_filename, ocr_text, analysis, MODEL_TYPE)
     
-    analysis_header = f"{model_name} Analysis" if MODEL_TYPE == "claude" else "Local ChatGPT Analysis"
+    analysis_header = f"{model_name} Analysis" if MODEL_TYPE == "bedrock" else "Local ChatGPT Analysis"
     print(f"Activity logged at {timestamp_readable}")
     print(f"{analysis_header}: {analysis}")
     
@@ -52,8 +52,8 @@ def parse_arguments():
     Parse command line arguments for model selection
     """
     parser = argparse.ArgumentParser(description='Screen monitoring with AI analysis')
-    parser.add_argument('--model', choices=['ollama', 'claude'], default='ollama',
-                       help='Choose AI model: ollama (local) or claude (via AWS Bedrock)')
+    parser.add_argument('--model', choices=['ollama', 'bedrock'], default='ollama',
+                       help='Choose AI model: ollama (local) or bedrock (via AWS Bedrock)')
     
     return parser.parse_args()
 

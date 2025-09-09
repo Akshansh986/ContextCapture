@@ -41,8 +41,8 @@ OCR Text:
 
 """
     
-    model_name = "Claude API" if model_type == "claude" else "local ChatGPT model via Ollama"
-    analysis_header = f"{model_name} Analysis" if model_type == "claude" else "Local ChatGPT Analysis"
+    model_name = "Bedrock API" if model_type == "bedrock" else "local ChatGPT model via Ollama"
+    analysis_header = f"{model_name} Analysis" if model_type == "bedrock" else "Local ChatGPT Analysis"
     processed_log_entry = f"""
 ===== {timestamp_readable} (Epoch: {epoch_time}) =====
 Screenshot: {screenshot_filename}

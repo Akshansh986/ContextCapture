@@ -1,19 +1,19 @@
 import sys
 import os
-from ai_analyzer import ClaudeAnalyzer, OpenAIAnalyzer
+from ai_analyzer import BedrockAnalyzer, OpenAIAnalyzer
 
 def test_connection_before_start(model_type):
     """
     Test connection before starting the main monitoring loop
     """
-    model_display = "Claude via AWS Bedrock" if model_type == "claude" else "local ChatGPT model via Ollama"
+    model_display = "Bedrock" if model_type == "bedrock" else "local ChatGPT model via Ollama"
     print(f"\nTesting {model_display} connection before starting...")
     
-    if model_type == "claude":
-        analyzer = ClaudeAnalyzer()
+    if model_type == "bedrock":
+        analyzer = BedrockAnalyzer()
         if not analyzer.test_connection():
             return False
-        print("✅ Claude via AWS Bedrock connection successful! Starting monitoring...\n")
+        print("✅ Bedrock connection successful! Starting monitoring...\n")
         return True
     else:
         analyzer = OpenAIAnalyzer()

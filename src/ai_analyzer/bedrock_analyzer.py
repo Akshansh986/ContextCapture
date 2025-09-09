@@ -2,13 +2,13 @@ import os
 import boto3
 
 
-class ClaudeAnalyzer:
+class BedrockAnalyzer:
     def __init__(self, aws_region="us-east-1"):
         self.aws_region = aws_region
         
     def analyze(self, ocr_text):
         """
-        Send OCR text to Claude via AWS Bedrock to analyze what the user is doing
+        Send OCR text to Bedrock to analyze what the user is doing
         """
         try:
             aws_bedrock_api_key = os.getenv('AWS_BEARER_TOKEN_BEDROCK')
@@ -42,32 +42,32 @@ OCR Text:
                 if content and len(content) > 0:
                     return content[0]["text"].strip()
             
-            return "Error: No content in Claude Bedrock response"
+            return "Error: No content in Bedrock response"
                 
         except Exception as e:
             return f"Analysis Error: AWS Bedrock request failed: {str(e)}"
     
     def test_connection(self):
         """
-        Test function to verify Claude via AWS Bedrock is working
+        Test function to verify Bedrock is working
         """
         aws_bedrock_api_key = os.getenv('AWS_BEARER_TOKEN_BEDROCK')
         if not aws_bedrock_api_key:
             print("❌ AWS_BEARER_TOKEN_BEDROCK environment variable not set")
             return False
             
-        test_text = "Hello, please respond with 'Claude via Bedrock is working correctly!'"
+        test_text = "Hello, please respond with 'Bedrock is working correctly!'"
         result = self.analyze(test_text)
         
         if "error" in result.lower():
-            print(f"❌ Claude connection test failed: {result}")
+            print(f"❌ Bedrock connection test failed: {result}")
             return False
             
         success = "working correctly" in result.lower() or "hello" in result.lower()
         if success:
-            print("✅ Claude via AWS Bedrock test successful!")
+            print("✅ Bedrock test successful!")
             print(f"Response: {result}")
         else:
-            print("❌ Claude via AWS Bedrock test failed.")
+            print("❌ Bedrock test failed.")
             print(f"Response: {result}")
         return success
