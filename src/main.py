@@ -11,7 +11,7 @@ from ocr_service import run_tesseract_ocr
 from ai_analysis import analyze_content
 from storage_service import ensure_directories, save_screenshot, write_activity_logs
 from screenshot_service import capture_screenshot, resize_screenshot
-from test_connection import run_connection_test, test_connection_before_start
+from test_connection import test_connection_before_start
 import power_monitor
 
 # Load environment variables from .env file
@@ -22,8 +22,6 @@ ensure_directories()
 
 # Global variables for model configuration
 MODEL_TYPE = "ollama"  # Default to ollama
-AWS_BEDROCK_API_KEY = None
-AWS_REGION = "us-east-1"  # Default region
 
 
 def capture_and_analyze():
@@ -39,7 +37,7 @@ def capture_and_analyze():
     
     model_name = "Claude API" if MODEL_TYPE == "claude" else "local ChatGPT model via Ollama"
     print(f"Analyzing content with {model_name}...")
-    analysis = analyze_content(ocr_text, MODEL_TYPE, AWS_BEDROCK_API_KEY, AWS_REGION)
+    analysis = analyze_content(ocr_text, MODEL_TYPE)
     
     log_entries = write_activity_logs(epoch_time, resized_filename, ocr_text, analysis, MODEL_TYPE)
     
@@ -51,17 +49,11 @@ def capture_and_analyze():
 
 def parse_arguments():
     """
-    Parse command line arguments for model selection and AWS Bedrock API key
+    Parse command line arguments for model selection
     """
     parser = argparse.ArgumentParser(description='Screen monitoring with AI analysis')
     parser.add_argument('--model', choices=['ollama', 'claude'], default='ollama',
                        help='Choose AI model: ollama (local) or claude (via AWS Bedrock)')
-    parser.add_argument('--aws-bedrock-api-key', type=str,
-                       help='AWS Bedrock API key (or set AWS_BEARER_TOKEN_BEDROCK environment variable)')
-    parser.add_argument('--aws-region', type=str, default='us-east-1',
-                       help='AWS region for Bedrock (default: us-east-1)')
-    parser.add_argument('--test', action='store_true',
-                       help='Test the selected model connection and exit')
     
     return parser.parse_args()
 
@@ -72,32 +64,13 @@ if __name__ == "__main__":
     
     # Set global model configuration
     MODEL_TYPE = args.model
-    AWS_BEDROCK_API_KEY = args.aws_bedrock_api_key or os.getenv('AWS_BEARER_TOKEN_BEDROCK')
-    AWS_REGION = args.aws_region
-    
-    # Check if user wants to test connection first
-    if args.test:
-        run_connection_test(MODEL_TYPE, AWS_BEDROCK_API_KEY, AWS_REGION)
-        sys.exit(0)
     
     try:
-        model_display = "Claude via AWS Bedrock" if MODEL_TYPE == "claude" else "local ChatGPT model via Ollama"
-        print(f"🖥️  Starting intelligent screen monitoring with {model_display}")
-        print("💤 Features: Automatic sleep/wake detection - monitoring pauses when laptop sleeps")
+        print(f"🖥️  Starting intelligent screen monitoring")
         print("🛑 Press Ctrl+C to stop")
         
-        if MODEL_TYPE == "claude":
-            if not AWS_BEDROCK_API_KEY:
-                print("❌ AWS Bedrock API key required. Use --aws-bedrock-api-key or set AWS_BEARER_TOKEN_BEDROCK environment variable.")
-                sys.exit(1)
-            print("📝 Note: Using Claude via AWS Bedrock for analysis")
-            print("🧪 Tip: Run 'python test.py --model claude --test' to test your AWS Bedrock connection first")
-        else:
-            print("📝 Note: Make sure Ollama is running with the 'gpt-oss:20b' model loaded on localhost:11434")
-            print("🧪 Tip: Run 'python test.py --test' to test your Ollama connection first")
-        
         # Test connection before starting
-        if not test_connection_before_start(MODEL_TYPE, AWS_BEDROCK_API_KEY, AWS_REGION):
+        if not test_connection_before_start(MODEL_TYPE):
             sys.exit(1)
         
         # Start power monitoring in a separate thread

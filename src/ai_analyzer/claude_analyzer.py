@@ -3,8 +3,7 @@ import boto3
 
 
 class ClaudeAnalyzer:
-    def __init__(self, aws_bedrock_api_key=None, aws_region="us-east-1"):
-        self.aws_bedrock_api_key = aws_bedrock_api_key
+    def __init__(self, aws_region="us-east-1"):
         self.aws_region = aws_region
         
     def analyze(self, ocr_text):
@@ -12,8 +11,9 @@ class ClaudeAnalyzer:
         Send OCR text to Claude via AWS Bedrock to analyze what the user is doing
         """
         try:
-            if self.aws_bedrock_api_key:
-                os.environ['AWS_BEARER_TOKEN_BEDROCK'] = self.aws_bedrock_api_key
+            aws_bedrock_api_key = os.getenv('AWS_BEARER_TOKEN_BEDROCK')
+            if not aws_bedrock_api_key:
+                return "Error: AWS_BEARER_TOKEN_BEDROCK environment variable not set"
             
             bedrock_runtime = boto3.client(
                 service_name='bedrock-runtime',
@@ -51,6 +51,23 @@ OCR Text:
         """
         Test function to verify Claude via AWS Bedrock is working
         """
+        aws_bedrock_api_key = os.getenv('AWS_BEARER_TOKEN_BEDROCK')
+        if not aws_bedrock_api_key:
+            print("❌ AWS_BEARER_TOKEN_BEDROCK environment variable not set")
+            return False
+            
         test_text = "Hello, please respond with 'Claude via Bedrock is working correctly!'"
         result = self.analyze(test_text)
-        return "working correctly" in result.lower() or "hello" in result.lower()
+        
+        if "error" in result.lower():
+            print(f"❌ Claude connection test failed: {result}")
+            return False
+            
+        success = "working correctly" in result.lower() or "hello" in result.lower()
+        if success:
+            print("✅ Claude via AWS Bedrock test successful!")
+            print(f"Response: {result}")
+        else:
+            print("❌ Claude via AWS Bedrock test failed.")
+            print(f"Response: {result}")
+        return success
