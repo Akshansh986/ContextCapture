@@ -8,9 +8,10 @@ import threading
 from dotenv import load_dotenv
 
 from ocr_service import run_tesseract_ocr
-from ai_analysis import analyze_content, test_ollama_connection, analyze_with_claude
+from ai_analysis import analyze_content
 from storage_service import ensure_directories, save_screenshot, write_activity_logs
 from screenshot_service import capture_screenshot, resize_screenshot
+from test_connection import run_connection_test, test_connection_before_start
 import power_monitor
 
 # Load environment variables from .env file
@@ -23,11 +24,6 @@ ensure_directories()
 MODEL_TYPE = "ollama"  # Default to ollama
 AWS_BEDROCK_API_KEY = None
 AWS_REGION = "us-east-1"  # Default region
-
-
-
-
-
 
 
 def capture_and_analyze():
@@ -81,25 +77,7 @@ if __name__ == "__main__":
     
     # Check if user wants to test connection first
     if args.test:
-        if MODEL_TYPE == "claude":
-            if not AWS_BEDROCK_API_KEY:
-                print("❌ AWS Bedrock API key required for testing. Use --aws-bedrock-api-key or set AWS_BEARER_TOKEN_BEDROCK environment variable.")
-                sys.exit(1)
-            print("Testing Claude via AWS Bedrock connection...")
-            test_text = "Hello, please respond with 'Claude via Bedrock is working correctly!'"
-            result = analyze_with_claude(test_text, AWS_BEDROCK_API_KEY, AWS_REGION)
-            if "working correctly" in result.lower() or "hello" in result.lower():
-                print("✅ Claude via AWS Bedrock test successful!")
-                print(f"Response: {result}")
-            else:
-                print("❌ Claude via AWS Bedrock test failed.")
-                print(f"Response: {result}")
-        else:  # ollama
-            print("Testing Ollama connection...")
-            if test_ollama_connection():
-                print("✅ Ollama test successful!")
-            else:
-                print("❌ Ollama test failed. Please check your setup.")
+        run_connection_test(MODEL_TYPE, AWS_BEDROCK_API_KEY, AWS_REGION)
         sys.exit(0)
     
     try:
@@ -119,24 +97,8 @@ if __name__ == "__main__":
             print("🧪 Tip: Run 'python test.py --test' to test your Ollama connection first")
         
         # Test connection before starting
-        print(f"\nTesting {model_display} connection before starting...")
-        if MODEL_TYPE == "claude":
-            test_text = "Hello, please respond briefly that you're working."
-            result = analyze_with_claude(test_text, AWS_BEDROCK_API_KEY, AWS_REGION)
-            if "error" in result.lower():
-                print("❌ Claude via AWS Bedrock connection test failed. Please check your AWS Bedrock API key and setup before continuing.")
-                print(f"Error: {result}")
-                sys.exit(1)
-            print("✅ Claude via AWS Bedrock connection successful! Starting monitoring...\n")
-        else:
-            if not test_ollama_connection():
-                print("❌ Ollama connection test failed. Please check your setup before continuing.")
-                print("Make sure:")
-                print("1. Ollama is running: ollama serve")
-                print("2. Model is available: ollama list")
-                print("3. Model name 'gpt-oss:20b' is correct")
-                sys.exit(1)
-            print("✅ Ollama connection successful! Starting monitoring...\n")
+        if not test_connection_before_start(MODEL_TYPE, AWS_BEDROCK_API_KEY, AWS_REGION):
+            sys.exit(1)
         
         # Start power monitoring in a separate thread
         def signal_handler(sig, frame):
