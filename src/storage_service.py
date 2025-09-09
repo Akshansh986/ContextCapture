@@ -2,8 +2,8 @@ import os
 import datetime
 
 
-SCREENSHOT_DIR = "screenshots"
-ACTIVITY_LOG_DIR = "activity_logs"
+SCREENSHOT_DIR = "../screenshots"
+ACTIVITY_LOG_DIR = "../activity_logs"
 
 
 def ensure_directories():
