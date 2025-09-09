@@ -40,11 +40,9 @@ OCR Text:
             
             if response.status_code == 200:
                 result = response.json()
-                print(f"DEBUG: Full Ollama response: {result}")
                 
                 if "response" in result:
                     model_output = result["response"].strip()
-                    print(f"DEBUG: Model output length: {len(model_output)}")
                     print(f"DEBUG: Model output: '{model_output}'")
                     
                     if not model_output:
